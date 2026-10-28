@@ -40,10 +40,4 @@ The current selected models are Seasonal Naive for Liquid and RidgeSpreadMacro f
 - WACR monthly series (RBI DBIE series republished): https://measure.thisindianlife.today/data/rates-call-monthly.json
 - 15–91-day T-bill SGL yield series (RBI DBIE series republished): https://measure.thisindianlife.today/data/rates-tbill-sgl.json
 
-## Before final submission
 
-- Reconcile transcribed/derived values against raw source files.
-- Fix or document the four missing cells.
-- Review the script for reproducibility in a clean environment.
-- Recompute all metrics from the final data and code.
-- Add the final presentation/report only after results are frozen.
