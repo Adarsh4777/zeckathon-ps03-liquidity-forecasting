@@ -169,7 +169,7 @@ def main():
         status_counts = raw["observation_status"].fillna("MISSING_STATUS").value_counts().to_dict() if "observation_status" in raw else {}
         duplicate_sources = int(raw.duplicated(["month", "category", "source_url"]).sum()) if "source_url" in raw else len(raw)
         audit.append({"category": cat, "expected_months": len(expected),
-                      "observed_rows": len(raw), "missing_months": len(set(expected)-present),
+                      "observed_rows": len(raw), "missing_months": int(raw["observation_status"].astype(str).str.contains("missing|unverified", case=False, regex=True).sum()) if "observation_status" in raw else len(set(expected)-present),
                       "duplicate_month_category": int(raw.duplicated(["month","category"]).sum()),
                       "missing_numeric_cells": numeric_missing, "rows_missing_source_url": source_missing,
                       "duplicate_month_category_source_rows": duplicate_sources,
@@ -181,7 +181,13 @@ def main():
     all_months = pd.date_range(d.month.min(), d.month.max(), freq="MS")
     expected_keys = {(m, cat) for m in all_months for cat in CATEGORIES}
     observed_keys = set(zip(d.month, d.category))
-    missing_keys = sorted(expected_keys - observed_keys)
+    # Missing/unverified cells are explicitly represented as calendar rows with blank flow values.
+    # Detect those statuses rather than treating the calendar placeholder as an observed data row.
+    if "observation_status" in d:
+        missing_mask = d["observation_status"].astype(str).str.contains("missing|unverified", case=False, regex=True)
+    else:
+        missing_mask = d[FLOW_COLS].isna().all(axis=1)
+    missing_keys = sorted((row.month, row.category) for row in d.loc[missing_mask, ["month", "category"]].itertuples(index=False))
     pd.DataFrame([{"month": m.strftime("%Y-%m"), "category": cat,
                    "status": "missing_or_unverified"} for m, cat in missing_keys]).to_csv(
                        RESULTS / "ps03_missing_category_months_canonical.csv", index=False)
