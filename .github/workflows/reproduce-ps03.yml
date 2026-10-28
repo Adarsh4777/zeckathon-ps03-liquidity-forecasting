@@ -1,0 +1,53 @@
+name: Reproducible PS03 pipeline
+
+on:
+  push:
+    branches: [main, "fix/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Rebuild analysis, workbook, and figures
+        run: python src/reproduce_submission.py
+      - name: Check expected outputs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          required = [
+              "ps03_data_quality_audit_canonical.csv",
+              "ps03_missing_category_months_canonical.csv",
+              "ps03_rolling_backtest_predictions_canonical.csv",
+              "ps03_model_metrics_canonical.csv",
+              "ps03_selected_models_canonical.csv",
+              "ps03_selected_test_metrics_canonical.csv",
+              "ps03_cash_buffer_policy_backtest_real_spread.csv",
+              "ps03_cash_buffer_policy_summary_real_spread.csv",
+              "research_workbook.xlsx",
+              "ps03_forecast_liquid_canonical.png",
+              "ps03_forecast_overnight_canonical.png",
+          ]
+          missing = [p for p in required if not (Path("results") / p).is_file()]
+          if missing:
+              raise SystemExit(f"Missing expected outputs: {missing}")
+          print(f"Verified {len(required)} generated artifacts.")
+          PY
+      - name: Upload generated submission artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps03-reproducible-results
+          path: results/
+          if-no-files-found: error
