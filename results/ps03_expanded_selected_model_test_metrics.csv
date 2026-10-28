@@ -1,0 +1,3 @@
+category,selected_model_by_pretest_MAE,n_test_predictions,test_start,test_end,MAE_cr,RMSE_cr,WAPE_pct,PI80_coverage_pct,PI80_n,PI95_coverage_pct,PI95_n,interval_calibration_source
+Liquid,SeasonalNaive,24,2024-10,2026-09,33198.8675,40501.1353,52.0125,83.3333,24,100.0000,24,Common validation period Mar2023-Sep2024 residuals only; fixed before Oct2024 test
+Overnight,RidgeSpreadMacro,24,2024-10,2026-09,14324.9880,18084.1154,75.0731,75.0000,24,75.0000,24,Common validation period Mar2023-Sep2024 residuals only; fixed before Oct2024 test
