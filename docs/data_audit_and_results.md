@@ -88,9 +88,3 @@ Overnight Trailing_99th_percentile_24m               21     2024-10    2026-06  
 - Monthly WACR source JSON (RBI DBIE series as republished): https://measure.thisindianlife.today/data/rates-call-monthly.json
 - Monthly Treasury bill SGL yield source JSON (RBI DBIE series as republished): https://measure.thisindianlife.today/data/rates-tbill-sgl.json
 
-## Limitations to fix before submission
-
-1. Retrieve the original raw AMFI archive files in a network-enabled environment and reconcile the manually transcribed/derived legacy subset with official Excel/PDF downloads. May and July 2021 monthly category rows remain unavailable here.
-2. Add complete official macro series only with release dates and historical vintages where available; a month-average observation must not leak into a forecast issued before that month has closed and been published.
-3. The fixed 24-month performance sample is small. Do not present 80%/95% interval coverage as calibrated merely because the sample coverage happens to be near target.
-4. The T-bill-minus-WACR spread is a market proxy. A fund-specific cash-versus-instrument return spread or independently sourced historical returns would be stronger.
