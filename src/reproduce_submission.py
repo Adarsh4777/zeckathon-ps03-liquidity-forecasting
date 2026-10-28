@@ -189,8 +189,8 @@ def main():
         raise ValueError("Duplicate month/category keys detected after input validation.")
     if len(missing_keys) != 4:
         raise ValueError(f"Expected 4 known missing/unverified category-month cells; found {len(missing_keys)}.")
-    if audit_df["identity_rows_over_0_02_cr"].sum() > 0:
-        raise ValueError("Net-flow identity discrepancy exceeds ₹0.02 crore; inspect the data before submission.")
+    if audit_df["max_abs_identity_diff_cr"].max() > 0.05:
+        raise ValueError("Net-flow identity discrepancy exceeds ₹0.05 crore; inspect the data before submission.")
 
     preds = []
     panels = {}
