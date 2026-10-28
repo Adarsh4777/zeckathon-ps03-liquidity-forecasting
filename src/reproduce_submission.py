@@ -228,6 +228,13 @@ def main():
                              "end": max(common) if len(common) else "", **q})
     metric = pd.DataFrame(rows)
     metric.to_csv(RESULTS / "ps03_model_metrics_canonical.csv", index=False, float_format="%.4f")
+    metric.rename(columns={"n_common": "n"}).to_csv(
+        RESULTS / "ps03_expanded_model_metrics.csv", index=False, float_format="%.4f")
+    common_val = metric[metric.window == "validation"].rename(columns={
+        "n_common": "n_validation_common", "start": "validation_common_start",
+        "end": "validation_common_end"})
+    common_val.to_csv(RESULTS / "ps03_model_selection_common_validation.csv",
+                      index=False, float_format="%.4f")
     val = metric[metric.window == "validation"]
     for cat in CATEGORIES:
         vc = val[val.category == cat].sort_values(["MAE_cr", "model"])
@@ -239,6 +246,13 @@ def main():
                                   **tm.iloc[0].to_dict()})
     pd.DataFrame(selected).to_csv(RESULTS / "ps03_selected_models_canonical.csv", index=False)
     pd.DataFrame(selected_test).to_csv(RESULTS / "ps03_selected_test_metrics_canonical.csv", index=False, float_format="%.4f")
+    selected_test_df = pd.DataFrame(selected_test)
+    if len(selected_test_df):
+        selected_test_df = selected_test_df.rename(columns={
+            "selected_model_by_common_validation_MAE": "selected_model_by_pretest_MAE",
+            "n_common": "n_test_predictions", "start": "test_start", "end": "test_end"})
+        selected_test_df.to_csv(RESULTS / "ps03_expanded_selected_model_test_metrics.csv",
+                                index=False, float_format="%.4f")
 
     # Ex-post cost scoring uses only months with observed spread. Decisions use data through t-2.
     spread_col = "yield_spread_tbill_minus_wacr_pct_points"
