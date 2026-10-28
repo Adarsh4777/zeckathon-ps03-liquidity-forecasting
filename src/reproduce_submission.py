@@ -165,14 +165,32 @@ def main():
         present = set(raw.month)
         numeric_missing = int(raw[FLOW_COLS].isna().sum().sum())
         identity = raw["funds_mobilized_cr"] - raw["gross_redemptions_cr"] - raw["net_flow_cr"]
+        source_missing = int(raw["source_url"].isna().sum() + raw["source_url"].astype(str).str.strip().eq("").sum()) if "source_url" in raw else len(raw)
+        status_counts = raw["observation_status"].fillna("MISSING_STATUS").value_counts().to_dict() if "observation_status" in raw else {}
+        duplicate_sources = int(raw.duplicated(["month", "category", "source_url"]).sum()) if "source_url" in raw else len(raw)
         audit.append({"category": cat, "expected_months": len(expected),
                       "observed_rows": len(raw), "missing_months": len(set(expected)-present),
                       "duplicate_month_category": int(raw.duplicated(["month","category"]).sum()),
-                      "missing_numeric_cells": numeric_missing,
+                      "missing_numeric_cells": numeric_missing, "rows_missing_source_url": source_missing,
+                      "duplicate_month_category_source_rows": duplicate_sources,
+                      "observation_status_counts": str(status_counts),
                       "max_abs_identity_diff_cr": float(identity.abs().max()),
                       "identity_rows_over_0_02_cr": int((identity.abs()>0.02).sum())})
     audit_df = pd.DataFrame(audit)
-    audit_df.to_csv(RESULTS / "canonical_data_quality_audit.csv", index=False)
+    audit_df.to_csv(RESULTS / "ps03_data_quality_audit_canonical.csv", index=False)
+    all_months = pd.date_range(d.month.min(), d.month.max(), freq="MS")
+    expected_keys = {(m, cat) for m in all_months for cat in CATEGORIES}
+    observed_keys = set(zip(d.month, d.category))
+    missing_keys = sorted(expected_keys - observed_keys)
+    pd.DataFrame([{"month": m.strftime("%Y-%m"), "category": cat,
+                   "status": "missing_or_unverified"} for m, cat in missing_keys]).to_csv(
+                       RESULTS / "ps03_missing_category_months_canonical.csv", index=False)
+    if len(d) != len(observed_keys):
+        raise ValueError("Duplicate month/category keys detected after input validation.")
+    if len(missing_keys) != 4:
+        raise ValueError(f"Expected 4 known missing/unverified category-month cells; found {len(missing_keys)}.")
+    if audit_df["identity_rows_over_0_02_cr"].sum() > 0:
+        raise ValueError("Net-flow identity discrepancy exceeds ₹0.02 crore; inspect the data before submission.")
 
     preds = []
     panels = {}
@@ -193,7 +211,7 @@ def main():
                               "abs_error_cr": abs(actual-p) if np.isfinite(p) else np.nan,
                               "flow_cutoff_month": g.index[i-2].strftime("%Y-%m") if i >= 2 else ""})
     pred = pd.DataFrame(preds)
-    pred.to_csv(RESULTS / "canonical_rolling_predictions.csv", index=False, float_format="%.4f")
+    pred.to_csv(RESULTS / "ps03_rolling_backtest_predictions_canonical.csv", index=False, float_format="%.4f")
 
     # A single common date set per category: dates with actuals and finite predictions for every model.
     rows, selected, selected_test = [], [], []
@@ -209,7 +227,7 @@ def main():
                              "n_common": len(common), "start": min(common) if len(common) else "",
                              "end": max(common) if len(common) else "", **q})
     metric = pd.DataFrame(rows)
-    metric.to_csv(RESULTS / "canonical_model_metrics.csv", index=False, float_format="%.4f")
+    metric.to_csv(RESULTS / "ps03_model_metrics_canonical.csv", index=False, float_format="%.4f")
     val = metric[metric.window == "validation"]
     for cat in CATEGORIES:
         vc = val[val.category == cat].sort_values(["MAE_cr", "model"])
@@ -219,8 +237,8 @@ def main():
         if len(tm):
             selected_test.append({"category": cat, "selected_model_by_common_validation_MAE": chosen,
                                   **tm.iloc[0].to_dict()})
-    pd.DataFrame(selected).to_csv(RESULTS / "canonical_selected_models.csv", index=False)
-    pd.DataFrame(selected_test).to_csv(RESULTS / "canonical_selected_test_metrics.csv", index=False, float_format="%.4f")
+    pd.DataFrame(selected).to_csv(RESULTS / "ps03_selected_models_canonical.csv", index=False)
+    pd.DataFrame(selected_test).to_csv(RESULTS / "ps03_selected_test_metrics_canonical.csv", index=False, float_format="%.4f")
 
     # Ex-post cost scoring uses only months with observed spread. Decisions use data through t-2.
     spread_col = "yield_spread_tbill_minus_wacr_pct_points"
@@ -250,14 +268,14 @@ def main():
                     "decision_cutoff": g.index[i-2].strftime("%Y-%m"),
                     "scoring_note": "Observed target-month spread used ex post only; spread is a market proxy."})
     buf = pd.DataFrame(buffer_rows)
-    buf.to_csv(RESULTS / "canonical_cash_buffer_backtest.csv", index=False, float_format="%.4f")
+    buf.to_csv(RESULTS / "ps03_cash_buffer_policy_backtest_real_spread.csv", index=False, float_format="%.4f")
     if len(buf):
         summ = buf.groupby(["category","policy"], as_index=False).agg(
             scored_months=("month","nunique"), first_month=("month","min"), last_month=("month","max"),
             mean_buffer_cr=("buffer_cr","mean"), total_yield_drag_cr=("idle_yield_drag_cr","sum"),
             total_shortfall_cr=("shortfall_cr","sum"), shortfall_months=("shortfall_cr",lambda s:int((s>0).sum())),
             total_cost_proxy_cr=("total_cost_proxy_cr","sum"))
-        summ.to_csv(RESULTS / "canonical_cash_buffer_summary.csv", index=False, float_format="%.4f")
+        summ.to_csv(RESULTS / "ps03_cash_buffer_policy_summary_real_spread.csv", index=False, float_format="%.4f")
 
     # Rebuild figures from canonical outputs.
     for cat in CATEGORIES:
@@ -271,7 +289,7 @@ def main():
         plt.plot(actual.month, actual.actual_net_flow_cr, label="Actual", linewidth=2)
         plt.xticks(rotation=45, ha="right"); plt.ylabel("Net flow (INR crore)")
         plt.title(f"{cat}: actual vs rolling-origin forecasts"); plt.legend()
-        plt.tight_layout(); plt.savefig(RESULTS / f"canonical_forecast_{cat.lower()}.png", dpi=160); plt.close()
+        plt.tight_layout(); plt.savefig(RESULTS / f"ps03_forecast_{cat.lower()}_canonical.png", dpi=160); plt.close()
 
     with pd.ExcelWriter(RESULTS / "research_workbook.xlsx", engine="openpyxl") as writer:
         audit_df.to_excel(writer, sheet_name="Data Audit", index=False)
@@ -286,7 +304,7 @@ def main():
     print(f"Input: {DATA / 'processed/ps03_amfi_rate_merged_full_calendar_2019_2026.csv'}")
     print(f"Outputs: {RESULTS}")
     print(f"Model validation window: {VAL_START} to {VAL_END}; test window: {TEST_START} to {TEST_END}")
-    print("Review canonical_data_quality_audit.csv and canonical_selected_test_metrics.csv before submission.")
+    print("Review ps03_data_quality_audit_canonical.csv, ps03_missing_category_months_canonical.csv, and ps03_selected_test_metrics_canonical.csv before submission.")
 
 
 if __name__ == "__main__":
